@@ -5,10 +5,10 @@ import torch.optim as optim
 from torchvision import datasets, transforms
 from torch.utils.data import DataLoader
 import os
+local_path = os.path.dirname(os.path.abspath(__file__))
+
 def main():
     torch.backends.cudnn.enabled = False
-
-    local_path = os.path.dirname(os.path.abspath(__file__))
 
     # 设置数据的预处理步骤，包括缩放、裁剪、转换为张量以及归一化
     transform = transforms.Compose([
@@ -20,7 +20,7 @@ def main():
     train_dataset = datasets.ImageFolder(root='C:\\Users\\24253\\Desktop\\NCCCU2024\\train', transform=transform)
 
     # 创建数据加载器，用于在训练时批量加载数据
-    train_loader = DataLoader(train_dataset, batch_size=16, shuffle=True, num_workers=5)
+    train_loader = DataLoader(train_dataset, batch_size=16, shuffle=True, num_workers=0)
 
     # 加载预训练的ResNet50模型
     # model = models.resnet50(pretrained=True)
@@ -49,7 +49,7 @@ def main():
     optimizer = optim.SGD(model.fc.parameters(), lr=0.001, momentum=0.9)  # 随机梯度下降优化器，仅优化最后一层的参数
 
     # 训练模型
-    num_epochs = 5  # 训练的轮数
+    num_epochs = 3  # 训练的轮数
     for epoch in range(num_epochs):
         model.train()  # 设置模型为训练模式
         running_loss = 0.0
@@ -65,6 +65,6 @@ def main():
             running_loss += loss.item()  # 累积损失
         print(f'Epoch {epoch+1}/{num_epochs}, Loss: {running_loss/len(train_loader)}')  # 打印每个epoch的损失
 
-    # torch.save(model, local_path + "\\model.pth")
+    torch.save(model, local_path + "\\model.pth")
 if __name__ == '__main__':
     main()
