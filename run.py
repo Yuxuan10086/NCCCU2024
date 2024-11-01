@@ -58,7 +58,7 @@ def main(to_pred_dir = local_path, result_save_path = os.path.join(local_path, "
     model_dir = os.path.dirname(run_py) # 当前文件夹路径
     dirpath = os.path.abspath(to_pred_dir)
     filepath = os.path.join(dirpath, 'testA') # 测试集A文件夹路径
-    task_lst = os.listdir(filepath) 
+    task_lst = [item for item in os.listdir(filepath) if os.path.isdir(os.path.join(filepath, item)) and "task" in item]  
 
     res = ['img_name,label']  # 初始化结果文件，定义表头
     for task_name in task_lst:  # 循环task文件夹
@@ -66,8 +66,8 @@ def main(to_pred_dir = local_path, result_save_path = os.path.join(local_path, "
         y_train = np.array([])  # 标签
         x_train = np.empty((0, model.fc.in_features))
         support_path = os.path.join(filepath, task_name, 'support')  # 支持集路径（文件夹名即为标签）
-        for support in os.listdir(support_path):
-            for img in os.listdir(os.path.join(support_path, support)):
+        for support in [item for item in os.listdir(support_path) if os.path.isdir(os.path.join(support_path, item))]:
+            for img in [item for item in os.listdir(os.path.join(support_path, support)) if ".png" in item]:
                 # print(os.path.join(support_path, support, img))
                 y_train = np.append(y_train, support)
                 features = extract_features(os.path.join(support_path, support, img), model)
