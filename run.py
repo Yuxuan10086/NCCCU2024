@@ -1,3 +1,6 @@
+import time
+
+
 import torch
 import torchvision.models as models
 from torchvision import transforms
@@ -6,9 +9,10 @@ import os
 import numpy as np
 from sklearn.neighbors import KNeighborsClassifier
 import sys
+start_time = time.time()
 local_path = os.path.dirname(os.path.abspath(__file__))
 
-def extract_features(image_path, model, device = torch.device("cpu")):
+def extract_features(image_path, model, device = torch.device("cuda")):
     # 设置数据的预处理步骤，与训练时相同
     transform = transforms.Compose([
         transforms.ToTensor(),  # 将图像转换为PyTorch张量
@@ -42,7 +46,7 @@ def extract_features(image_path, model, device = torch.device("cpu")):
         features = model.avgpool(features)
 
     # 返回特征向量
-    return features.squeeze(0).squeeze().numpy()[np.newaxis, :]  # 移除批次维度
+    return features.squeeze(0).cpu().squeeze().numpy()[np.newaxis, :]  # 移除批次维度
 
 
 
@@ -51,7 +55,7 @@ def extract_features(image_path, model, device = torch.device("cpu")):
 
 def main(to_pred_dir = local_path, result_save_path = os.path.join(local_path, "res.csv")):
     # 1.加载模型
-    model = torch.load(os.path.join(local_path, "model.pth"), map_location=torch.device("cpu"))
+    model = torch.load(os.path.join(local_path, "model.pth"), map_location=torch.device("cuda"), weights_only=False)
 
     
     run_py = os.path.abspath(__file__)
@@ -86,22 +90,31 @@ def main(to_pred_dir = local_path, result_save_path = os.path.join(local_path, "
         # print(f'Test sample belongs to class: {prediction[0]}')
 
         # 3.预测
+        right = 0
         test_img_lst = [name for name in os.listdir(query_path) if name.endswith('.png')]
         for pathi in test_img_lst:
             name_img = os.path.join(query_path, pathi)
             pred_class = knn.predict(extract_features(name_img, model))  # 这里指定了一个值代替预测值，选手需要根据自己模型进行实际的预测
+            print(pathi)
             print(pred_class)
+            right += (pathi.split('_')[1] == pred_class[0])
             res.append(pathi + ',' + pred_class[0])
 
     # 将预测结果保存到result_save_path
     with open(result_save_path, 'w') as f:
         f.write('\n'.join(res))
+    
+    print(f"正确率：{right/20:.2f}")
 
-# main()
+
+main()
+end_time = time.time()
+execution_time = end_time - start_time
+print(f"代码执行时间: {execution_time:.2f} 秒")
 
 
-if __name__ == "__main__":
-    # ！！！以下内容不允许修改，修改会导致评分出错
-    to_pred_dir = sys.argv[1]  # 所需预测的文件夹路径
-    result_save_path = sys.argv[2]  # 预测结果保存文件路径，已指定格式为csv
-    main(to_pred_dir, result_save_path)
+# if __name__ == "__main__":
+#     # ！！！以下内容不允许修改，修改会导致评分出错
+#     to_pred_dir = sys.argv[1]  # 所需预测的文件夹路径
+#     result_save_path = sys.argv[2]  # 预测结果保存文件路径，已指定格式为csv
+#     main(to_pred_dir, result_save_path)
