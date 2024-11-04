@@ -1,6 +1,4 @@
 import time
-
-
 import torch
 import torchvision.models as models
 from torchvision import transforms
@@ -9,8 +7,9 @@ import os
 import numpy as np
 from sklearn.neighbors import KNeighborsClassifier
 import sys
+
 start_time = time.time()
-local_path = os.path.dirname(os.path.abspath(__file__))
+
 
 def extract_features(image_path, model, device = torch.device("cuda")):
     # 设置数据的预处理步骤，与训练时相同
@@ -53,9 +52,14 @@ def extract_features(image_path, model, device = torch.device("cuda")):
 
 
 
-def main(to_pred_dir = local_path, result_save_path = os.path.join(local_path, "res.csv")):
+def main(to_pred_dir = 0, result_save_path = 0):
+    local_path = os.path.dirname(os.path.abspath(__file__))
+    if to_pred_dir == 0:
+        to_pred_dir = local_path
+        result_save_path = os.path.join(local_path, "res.csv")
     # 1.加载模型
     model = torch.load(os.path.join(local_path, "model.pth"), map_location=torch.device("cuda"), weights_only=False)
+    model.to(torch.device("cuda"))
 
     
     run_py = os.path.abspath(__file__)
@@ -65,6 +69,8 @@ def main(to_pred_dir = local_path, result_save_path = os.path.join(local_path, "
     task_lst = [item for item in os.listdir(filepath) if os.path.isdir(os.path.join(filepath, item)) and "task" in item]  
 
     res = ['img_name,label']  # 初始化结果文件，定义表头
+    right = 0
+    total = 0
     for task_name in task_lst:  # 循环task文件夹
         # 2.提取支持集特征 构建knn分类器
         y_train = np.array([])  # 标签
@@ -80,37 +86,32 @@ def main(to_pred_dir = local_path, result_save_path = os.path.join(local_path, "
                 x_train = np.vstack((x_train, features.copy()))
         # print(y_train)
         # print(x_train)
-        knn = KNeighborsClassifier(n_neighbors = 5)  # 选择最近邻
-        knn.fit(x_train, y_train)  # 训练（其实这里不需要训练，只是为了构建模型）
+        knn = KNeighborsClassifier(n_neighbors = 5)  
+        knn.fit(x_train, y_train)  
 
         query_path = os.path.join(filepath, task_name, 'query')  # 查询集路径（无标签，待预测图片）
 
-        # 预测类别
-        # prediction = knn.predict(X_test)
-        # print(f'Test sample belongs to class: {prediction[0]}')
-
         # 3.预测
-        right = 0
         test_img_lst = [name for name in os.listdir(query_path) if name.endswith('.png')]
+        total += len(test_img_lst)
         for pathi in test_img_lst:
             name_img = os.path.join(query_path, pathi)
             pred_class = knn.predict(extract_features(name_img, model))  # 这里指定了一个值代替预测值，选手需要根据自己模型进行实际的预测
-            print(pathi)
-            print(pred_class)
+            # print(pathi)
+            # print(pred_class)
             right += (pathi.split('_')[1] == pred_class[0])
             res.append(pathi + ',' + pred_class[0])
 
-    # 将预测结果保存到result_save_path
     with open(result_save_path, 'w') as f:
         f.write('\n'.join(res))
     
-    print(f"正确率：{right/20:.2f}")
+    print(f"正确率：{right/total*100:.2f}%")
 
-
-main()
-end_time = time.time()
-execution_time = end_time - start_time
-print(f"代码执行时间: {execution_time:.2f} 秒")
+if __name__ == "__main__":
+    main()
+    end_time = time.time()
+    execution_time = end_time - start_time
+    print(f"代码执行时间: {execution_time:.2f} 秒")
 
 
 # if __name__ == "__main__":
