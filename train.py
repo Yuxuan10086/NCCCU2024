@@ -8,62 +8,96 @@ import os
 from tqdm import tqdm
 import time
 import run
+from PIL import Image
+from torch.utils.data import Dataset
 local_path = os.path.dirname(os.path.abspath(__file__))
 
+import os
+from PIL import Image
+from torch.utils.data import Dataset
+from torchvision import transforms
+
+class NewDataset(Dataset):
+    def __init__(self, root_dir, transform=None, start=0, step=100):
+        self.root_dir = root_dir
+        self.transform = transform
+        self.classes = os.listdir(root_dir)
+        self.start = start
+        self.step = step
+        self.samples = self._get_samples()
+    def _get_samples(self):
+        samples = []
+        for class_idx, class_name in enumerate(self.classes):
+            if self._load_rule(class_name):  # 使用提供的函数决定是否加载该类别的数据
+                class_dir = os.path.join(self.root_dir, class_name)
+                for img_name in os.listdir(class_dir):
+                    img_path = os.path.join(class_dir, img_name)
+                    samples.append((img_path, class_idx))
+        return samples
+    def __getitem__(self, index):
+        img_path, class_idx = self.samples[index]
+        image = Image.open(img_path).convert('RGB')
+        if self.transform:
+            image = self.transform(image)
+        return image, class_idx
+    def __len__(self):
+        return len(self.samples)
+    def _load_rule(self, name):
+        return int(name.split('_')[1]) >= self.start and int(name.split('_')[1]) < self.start + self.step
+
 def main():
+    data_root = r'C:\Users\24253\Desktop\train'
     torch.backends.cudnn.enabled = True
     device = torch.device("cuda")
-    # 设置数据的预处理步骤，包括缩放、裁剪、转换为张量以及归一化
+    # 数据预处理
     transform = transforms.Compose([
-        transforms.ToTensor(),  # 将图像转换为PyTorch张量
+        transforms.ToTensor(),
         transforms.Normalize(mean=[0.485, 0.456, 0.406], std=[0.229, 0.224, 0.225])  # 归一化处理
     ])
-    print("step1")
-    # 加载训练数据集
-    train_dataset = datasets.ImageFolder(root=r'C:\Users\24253\Desktop\NCCCU2024\train', transform=transform)
-    print("step2")
-    train_loader = DataLoader(train_dataset, batch_size=48, shuffle=True, num_workers=12, pin_memory=True) # 本地访问可以开多点进程
-    print("load...")
-    model = torch.load(local_path + "\\model.pth", map_location=torch.device("cuda"), weights_only=False)
-    print("load finished")
 
-
+    model = torch.load(local_path + "\\model.pth", map_location=device, weights_only=False)
     # 冻结模型参数
-    for name, param in model.named_parameters():
-    # 根据ResNet50的结构，layer2、layer3、layer4分别对应于不同的残差块组
-        if "layer1" in name or "layer2" in name or "layer3" in name:
-            param.requires_grad = False
-
-    # 替换模型的最后一层
-    num_ftrs = model.fc.in_features  # 获取全连接层的输入特征数
-    model.fc = nn.Linear(num_ftrs, len(train_dataset.classes))  # 替换全连接层，以匹配新的类别数
-
+    
     model.to(device)
 
-    # 定义损失函数和优化器
-    criterion = nn.CrossEntropyLoss()  # 交叉熵损失函数，适用于多分类问题
-    optimizer = optim.SGD(model.parameters(), lr=0.001, momentum=0.9)  # 随机梯度下降优化器，仅优化最后一层的参数
+    criterion = nn.CrossEntropyLoss()  # 交叉熵损失函数
+    optimizer = optim.SGD(model.parameters(), lr=0.001, momentum=0.9)  # 随机梯度下降优化器
 
-    num_epochs = 5  # 训练的轮数
-    for epoch in range(num_epochs):
-        print(f'Epoch {epoch+1} start...')
-        model.train()  # 设置模型为训练模式
-        running_loss = 0.0
-        for batch_idx, (inputs, labels) in enumerate(tqdm(train_loader, desc=f'Epoch {epoch+1}/{num_epochs}')):  # 遍历数据加载器中的所有批次
-            inputs, labels = inputs.to(device), labels.to(device)  # 将数据移动到GPU
-            optimizer.zero_grad()  # 清零梯度
-            outputs = model(inputs)  # 前向传播，计算输出
-            loss = criterion(outputs, labels)  # 计算损失
-            loss.backward()  # 反向传播，计算梯度
-            optimizer.step()  # 更新参数
+    num_epochs = 3  # 训练的轮数
+    step = 100 # 每次训练载入的类别数
+    start = 135
+    for data_epoch in range(int(len(os.listdir(data_root))/step+0.8)):
+        # 加载数据
+        for name, param in model.named_parameters():
+            if not "fc" in name:
+                param.requires_grad = False
+        train_dataset = NewDataset(data_root, transform, start, step)
+        train_loader = DataLoader(train_dataset, batch_size=48, shuffle=True, num_workers=12, pin_memory=True)
+        # 替换模型的最后一层
+        num_ftrs = model.fc.in_features  # 获取全连接层的输入特征数
+        model.fc = nn.Linear(num_ftrs, len(train_dataset.classes))  # 替换全连接层，以匹配新的类别数
+        model.to(device)
 
-            running_loss += loss.item()  # 累积损失
-        print(f'Epoch {epoch+1}/{num_epochs}, Loss: {running_loss/len(train_loader)}')  # 打印每个epoch的损失
-        torch.save(model, local_path + "\\model.pth")
-        run.main()
-        torch.save(model, local_path + "\\model" + str(epoch) + ".pth")
+        for epoch in range(num_epochs):
+            print(f'Epoch {epoch+1} start...')
+            for name, param in model.named_parameters():
+                if "layer4." + str(2-epoch) in name:
+                    param.requires_grad = True
+            model.train()  # 设置模型为训练模式
+            running_loss = 0.0
+            for batch_idx, (inputs, labels) in enumerate(tqdm(train_loader, desc=f'Epoch {epoch+1}/{num_epochs}')):  # 遍历数据加载器中的所有批次
+                inputs, labels = inputs.to(device), labels.to(device)  # 将数据移动到GPU
+                optimizer.zero_grad()  # 清零梯度
+                outputs = model(inputs)  # 前向传播，计算输出
+                loss = criterion(outputs, labels)  # 计算损失
+                loss.backward()  # 反向传播，计算梯度
+                optimizer.step()  # 更新参数
 
-    # torch.save(model.state_dict(), local_path + "\\model.pth")
+                running_loss += loss.item()  # 累积损失
+            print(f'Epoch {epoch+1}/{num_epochs}, Loss: {running_loss/len(train_loader)}')  # 打印每个epoch的损失
+            torch.save(model, local_path + "\\model.pth")
+            run.main()
+            torch.save(model, local_path + "\\model_" + str(data_epoch) + "_" + str(epoch) + ".pth")
 
 if __name__ == '__main__':
     start_time = time.time()

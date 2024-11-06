@@ -53,13 +53,14 @@ def extract_features(image_path, model, device = torch.device("cuda")):
 
 
 def main(to_pred_dir = 0, result_save_path = 0):
+    device = torch.device("cuda")
     local_path = os.path.dirname(os.path.abspath(__file__))
     if to_pred_dir == 0:
         to_pred_dir = local_path
         result_save_path = os.path.join(local_path, "res.csv")
     # 1.加载模型
-    model = torch.load(os.path.join(local_path, "model.pth"), map_location=torch.device("cuda"), weights_only=False)
-    model.to(torch.device("cuda"))
+    model = torch.load(os.path.join(local_path, "model5.pth"), map_location=device, weights_only=False)
+    model.to(device)
 
     
     run_py = os.path.abspath(__file__)
@@ -113,6 +114,7 @@ if __name__ == "__main__":
     execution_time = end_time - start_time
     print(f"代码执行时间: {execution_time:.2f} 秒")
 
+# python run.py "C:\Users\24253\Desktop\NCCCU2024" "C:\Users\24253\Desktop\NCCCU2024\res.csv"
 
 # if __name__ == "__main__":
 #     # ！！！以下内容不允许修改，修改会导致评分出错
