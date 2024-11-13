@@ -3,7 +3,7 @@ import torchvision.models as models
 import os
 def turn_to_full():
     local_path = os.path.dirname(os.path.abspath(__file__))
-    model = models.resnet152(pretrained=False)
+    model = models.resnet101(pretrained=False)
     model.load_state_dict(torch.load(local_path + "\\model.pth", weights_only = False))
     torch.save(model, local_path + "\\model.pth")
 
@@ -79,5 +79,4 @@ def remove_first_five_chars_from_folders(folder_path):
             else:
                 print(f"文件夹 '{item}' 名字太短，无法去掉前五个字符。")
 
-delete_random_png_files(r"C:\Users\24253\Desktop\NCCCU2024\testA\task2\query", 0.5)
-delete_random_png_files(r"C:\Users\24253\Desktop\NCCCU2024\testA\task1\query", 0.5)
+turn_to_full()
