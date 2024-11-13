@@ -2,3 +2,4 @@ testA/
 train/
 *.csv
 *.pth
+__*__
